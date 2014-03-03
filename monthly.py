@@ -18,6 +18,7 @@ import mechanize as me
 import tweepy
 
 LOGIN = "https://sso.garmin.com/sso/login?service=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&webhost=olaxpw-connect01.garmin.com&source=http%%3A%%2F%%2Fconnect.garmin.com%%2Fen-US%%2Fsignin&redirectAfterAccountLoginUrl=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&redirectAfterAccountCreationUrl=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&gauthHost=https%%3A%%2F%%2Fsso.garmin.com%%2Fsso&locale=en&id=gauth-widget&cssUrl=https%%3A%%2F%%2Fstatic.garmincdn.com%%2Fcom.garmin.connect%%2Fui%%2Fsrc-css%%2Fgauth-custom.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=true&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false#"
+REDIRECT = "http://connect.garmin.com/post-auth/login"
 ACTIVITIES = 'http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?activityType=running&beginTimestamp>%s&beginTimestamp<%s&limit=%s'
 
 #####################################################
@@ -46,13 +47,14 @@ ACCESS_SECRET = 'your_access_token_secret'
 ################################################
 
 def login(agent, username, password):
-    global LOGIN
+    global LOGIN, REDIRECT
     agent.open(LOGIN)
-    agent.select_form(name = 'login-form')
-    agent['login-form:username'] = username
-    agent['login-form:password'] = password
+    agent.select_form(predicate = lambda f: 'id' in f.attrs and f.attrs['id'] == 'login-form')
+    agent['username'] = username
+    agent['password'] = password
 
     agent.submit()
+    agent.open(REDIRECT)
     if agent.title().find('Sign In') > -1:
         quit('Login incorrect! Check your credentials.')
 
