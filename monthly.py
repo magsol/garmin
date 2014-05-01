@@ -85,9 +85,25 @@ def activities(agent, increment = 100):
     # capture them here.
     calories = 0.0
     distance = 0.0
+    activitiesWithoutCalories = 0
+    missingMiles = 0.0
     for item in search['results']['activities']:
-        calories += float(item['activity']['activitySummary']['SumEnergy']['value'])
-        distance += float(item['activity']['activitySummary']['SumDistance']['value'])
+        value = float(item['activity']['activitySummary']['SumDistance']['value'])
+        distance += value
+
+        if 'SumEnergy' not in item['activity']['activitySummary']:
+            activitiesWithoutCalories += 1
+            missingMiles += value
+        else:
+            calories += float(item['activity']['activitySummary']['SumEnergy']['value'])
+
+    # Are there any calorie counts we need to estimate?
+    if activitiesWithoutCalories > 0:
+        # Use the average calorie count, times the number of activities we have to estimate.
+        # It's crude, but it gets the job done. If you want something more accurate,
+        # FILL IN YOUR CALORIE COUNTS.
+        m = calories / (distance - missingMiles)
+        calories += (m * missingMiles)
 
     # All done! Return the information we want.
     return [totalActivities, distance, calories]
