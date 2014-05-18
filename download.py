@@ -16,20 +16,22 @@ import json
 import mechanize as me
 import os
 
-LOGIN = "https://connect.garmin.com/signin"
-ACTIVITIES = "http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?start=%s&limit=%s"
+LOGIN = "https://sso.garmin.com/sso/login?service=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&webhost=olaxpw-connect01.garmin.com&source=http%%3A%%2F%%2Fconnect.garmin.com%%2Fen-US%%2Fsignin&redirectAfterAccountLoginUrl=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&redirectAfterAccountCreationUrl=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&gauthHost=https%%3A%%2F%%2Fsso.garmin.com%%2Fsso&locale=en&id=gauth-widget&cssUrl=https%%3A%%2F%%2Fstatic.garmincdn.com%%2Fcom.garmin.connect%%2Fui%%2Fsrc-css%%2Fgauth-custom.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=true&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false#"
+REDIRECT = "http://connect.garmin.com/post-auth/login"
+ACTIVITIES = "http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?start=%s&limit=%s"
 TCX = "https://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/%s?full=true"
 GPX = "https://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/%s?full=true"
 KML = "https://connect.garmin.com/proxy/activity-service-1.0/kml/activity/%s?full=true"
 
 def login(agent, username, password):
-    global LOGIN
+    global LOGIN, REDIRECT
     agent.open(LOGIN)
-    agent.select_form(name = 'login')
-    agent['login:loginUsernameField'] = username
-    agent['login:password'] = password
+    agent.select_form(predicate = lambda f: 'id' in f.attrs and f.attrs['id'] == 'login-form')
+    agent['username'] = username
+    agent['password'] = password
 
     agent.submit()
+    agent.open(REDIRECT)
     if agent.title().find('Sign In') > -1:
         quit('Login incorrect! Check your credentials.')
 
@@ -39,7 +41,7 @@ def activities(agent, outdir, increment = 100):
     initUrl = ACTIVITIES % (currentIndex, increment) # 100 activities seems a nice round number
     response = agent.open(initUrl)
     search = json.loads(response.get_data())
-    totalActivities = int(search['results']['search']['totalFound'])
+    totalActivities = int(search['results']['totalFound'])
     while True:
         for item in search['results']['activities']:
             # Read this list of activities and save the files.
