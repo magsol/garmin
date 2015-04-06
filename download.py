@@ -3,6 +3,10 @@ This script was inspired from tmcw's Ruby script doing the same thing:
 
     https://gist.github.com/tmcw/1098861
 
+And recent fixes implemented thanks to the login structure by wederbrand:
+
+    https://github.com/wederbrand/workout-exchange/blob/master/garmin_connect/download_all.rb
+
 The goal is to iteratively download all detailed information from Garmin Connect
 and store it locally for further perusal and analysis. This is still very much
 preliminary; future versions should include the ability to seamlessly merge
@@ -15,27 +19,80 @@ from getpass import getpass
 import json
 import mechanize as me
 import os
+import re
 import shutil
 import sys
+import urllib
 
-LOGIN = "https://sso.garmin.com/sso/login?service=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&webhost=olaxpw-connect01.garmin.com&source=http%%3A%%2F%%2Fconnect.garmin.com%%2Fen-US%%2Fsignin&redirectAfterAccountLoginUrl=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&redirectAfterAccountCreationUrl=http%%3A%%2F%%2Fconnect.garmin.com%%2Fpost-auth%%2Flogin&gauthHost=https%%3A%%2F%%2Fsso.garmin.com%%2Fsso&locale=en&id=gauth-widget&cssUrl=https%%3A%%2F%%2Fstatic.garmincdn.com%%2Fcom.garmin.connect%%2Fui%%2Fsrc-css%%2Fgauth-custom.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=true&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false#"
-REDIRECT = "http://connect.garmin.com/post-auth/login"
+BASE_URL = "http://connect.garmin.com/en-US/signin"
+GAUTH = "http://connect.garmin.com/gauth/hostname"
+SSO = "https://sso.garmin.com/sso"
+CSS = "https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.1-min.css"
+REDIRECT = "https://connect.garmin.com/post-auth/login"
 ACTIVITIES = "http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?start=%s&limit=%s"
 TCX = "https://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/%s?full=true"
 GPX = "https://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/%s?full=true"
 KML = "https://connect.garmin.com/proxy/activity-service-1.0/kml/activity/%s?full=true"
 
 def login(agent, username, password):
-    global LOGIN, REDIRECT
-    agent.open(LOGIN)
+    global BASE_URL, GAUTH, REDIRECT, SSO, CSS
+
+    # First establish contact with Garmin and decipher the local host.
+    page = agent.open(BASE_URL)
+    pattern = "\"\S+sso\.garmin\.com\S+\""
+    script_url = re.search(pattern, page.get_data()).group()[1:-1]
+    agent.open(script_url)
+    hostname_url = agent.open(GAUTH)
+    hostname = json.loads(hostname_url.get_data())['host']
+
+    # Package the full login GET request...
+    data = {'service': REDIRECT,
+        'webhost': hostname,
+        'source': BASE_URL,
+        'redirectAfterAccountLoginUrl': REDIRECT,
+        'redirectAfterAccountCreationUrl': REDIRECT,
+        'gauthHost': SSO,
+        'locale': 'en_US',
+        'id': 'gauth-widget',
+        'cssUrl': CSS,
+        'clientId': 'GarminConnect',
+        'rememberMeShown': 'true',
+        'rememberMeChecked': 'false',
+        'createAccountShown': 'true',
+        'openCreateAccount': 'false',
+        'usernameShown': 'false',
+        'displayNameShown': 'false',
+        'consumeServiceTicket': 'false',
+        'initialFocus': 'true',
+        'embedWidget': 'false',
+        'generateExtraServiceTicket': 'false'}
+
+    # ...and officially say "hello" to Garmin Connect.
+    login_url = 'https://sso.garmin.com/sso/login?%s' % urllib.urlencode(data)
+    agent.open(login_url)
+
+    # Set up the login form.
     agent.select_form(predicate = lambda f: 'id' in f.attrs and f.attrs['id'] == 'login-form')
     agent['username'] = username
     agent['password'] = password
+    agent.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.121 Safari/535.2'), ]
+    # Apparently Garmin Connect attempts to filter on these browser headers;
+    # without them, the login will fail.
 
-    agent.submit()
-    agent.open(REDIRECT)
-    if agent.title().find('Sign In') > -1:
-        quit('Login incorrect! Check your credentials.')
+    # Submit the login!
+    res = agent.submit()
+    if res.get_data().find("Invalid") >= 0:
+        quit("Login failed! Check your credentials, or submit a bug report.")
+    elif res.get_data().find("SUCCESS") >= 0:
+        print 'Login successful! Proceeding...'
+    else:
+        quit('UNKNOWN STATE. This script may need to be updated. Submit a bug report.')
+
+    # Now we need a very specific URL from the respose.
+    response_url = re.search("response_url\s*=\s*'(.*)';", res.get_data()).groups()[0]
+    agent.open(response_url)
+
+    # In theory, we're in.
 
 def file_exists_in_folder(filename, folder):
     "Check if the file exists in folder of any subfolder"
@@ -47,7 +104,7 @@ def file_exists_in_folder(filename, folder):
 def activities(agent, outdir, increment = 100):
     global ACTIVITIES
     currentIndex = 0
-    initUrl = ACTIVITIES % (currentIndex, increment) # 100 activities seems a nice round number
+    initUrl = ACTIVITIES % (currentIndex, increment)  # 100 activities seems a nice round number
     try:
         response = agent.open(initUrl)
     except:
@@ -72,7 +129,6 @@ def activities(agent, outdir, increment = 100):
             f.write(datafile)
             f.close()
             shutil.copy(file_path, os.path.join(os.path.dirname(os.path.dirname(file_path)), file_name))
-
 
         if (currentIndex + increment) > totalActivities:
             # All done!
@@ -99,11 +155,9 @@ def download_files_for_user(username, password, output):
     # Scrape all the activities.
     activities(agent, download_folder)
 
-
 folder_execute = os.path.dirname(sys.executable)
 if folder_execute.endswith('/Contents/MacOS'):
     os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(folder_execute))))
-
 
 parser = argparse.ArgumentParser(description = 'Garmin Data Scraper',
     epilog = 'Because the hell with APIs!', add_help = 'How to use',
@@ -111,8 +165,8 @@ parser = argparse.ArgumentParser(description = 'Garmin Data Scraper',
 parser.add_argument('-u', '--user', required = False,
     help = 'Garmin username. This will NOT be saved!')
 parser.add_argument('-c', '--csv', required=False,
-                    help='CSV file with username and password (comma separated).',
-                    default=os.path.join(os.getcwd(),'credentials.csv'))
+    help = 'CSV file with username and password (comma separated).',
+    default = os.path.join(os.getcwd(), 'credentials.csv'))
 parser.add_argument('-o', '--output', required = False,
     help = 'Output directory.', default=os.path.join(os.getcwd(), 'Results/'))
 
