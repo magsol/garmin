@@ -117,8 +117,9 @@ def activities(agent, outdir, increment = 100):
             # Read this list of activities and save the files.
             # print '.'
             activityId = item['activity']['activityId']
+            activityDate = item['activity']['activitySummary']['BeginTimestamp']['value'][:10]
             url = TCX % activityId
-            file_name = '{}_{}.txt'.format(username, activityId)
+            file_name = '{}_{}.txt'.format(activityDate, activityId)
             if file_exists_in_folder(file_name, output):
                 print('{} already exists in {}. Skipping.'.format(file_name, output))
                 continue
