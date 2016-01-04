@@ -76,6 +76,8 @@ def login(agent, username, password):
     agent['username'] = username
     agent['password'] = password
     agent.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.121 Safari/535.2'), ]
+    agent.set_handle_robots(False)   # no robots
+    agent.set_handle_refresh(False)  # can sometimes hang without this
     # Apparently Garmin Connect attempts to filter on these browser headers;
     # without them, the login will fail.
 
