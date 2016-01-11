@@ -41,6 +41,8 @@ def login(agent, username, password):
     page = agent.open(BASE_URL)
     pattern = "\"\S+sso\.garmin\.com\S+\""
     script_url = re.search(pattern, page.get_data()).group()[1:-1]
+    agent.set_handle_robots(False)   # no robots
+    agent.set_handle_refresh(False)  # can sometimes hang without this
     agent.open(script_url)
     hostname_url = agent.open(GAUTH)
     hostname = json.loads(hostname_url.get_data())['host']
