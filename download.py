@@ -25,9 +25,9 @@ import sys
 import urllib
 
 BASE_URL = "http://connect.garmin.com/en-US/signin"
-GAUTH = "http://connect.garmin.com/gauth/hostname"
+GAUTH = "https://connect.garmin.com/gauth/hostname"
 SSO = "https://sso.garmin.com/sso"
-CSS = "https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.1-min.css"
+CSS = "https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.2-min.css"
 REDIRECT = "https://connect.garmin.com/post-auth/login"
 ACTIVITIES = "http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?start=%s&limit=%s"
 #TCX = "https://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/%s?full=true"
@@ -46,6 +46,7 @@ def login(agent, username, password):
     agent.set_handle_robots(False)   # no robots
     agent.set_handle_refresh(False)  # can sometimes hang without this
     agent.open(script_url)
+    agent.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.121 Safari/535.2')]
     hostname_url = agent.open(GAUTH)
     hostname = json.loads(hostname_url.get_data())['host']
 
@@ -79,7 +80,6 @@ def login(agent, username, password):
     agent.select_form(predicate = lambda f: 'id' in f.attrs and f.attrs['id'] == 'login-form')
     agent['username'] = username
     agent['password'] = password
-    agent.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.121 Safari/535.2'), ]
     agent.set_handle_robots(False)   # no robots
     agent.set_handle_refresh(False)  # can sometimes hang without this
     # Apparently Garmin Connect attempts to filter on these browser headers;
@@ -96,7 +96,7 @@ def login(agent, username, password):
 
     # Now we need a very specific URL from the respose.
     response_url = re.search("response_url\s*=\s*'(.*)';", res.get_data()).groups()[0]
-    agent.open(response_url)
+    agent.open(response_url.replace("\/", "/"))
 
     # In theory, we're in.
 
