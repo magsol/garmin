@@ -148,6 +148,7 @@ def activities(agent, outdir, increment = 100):
 def download_files_for_user(username, password, output):
     # Create the agent and log in.
     agent = me.Browser()
+    print("Attempting to login to Garmin Connect...")
     login(agent, username, password)
 
     user_output = os.path.join(output, username)
@@ -160,45 +161,47 @@ def download_files_for_user(username, password, output):
     # Scrape all the activities.
     activities(agent, download_folder)
 
-folder_execute = os.path.dirname(sys.executable)
-if folder_execute.endswith('/Contents/MacOS'):
-    os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(folder_execute))))
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description = 'Garmin Data Scraper',
+        epilog = 'Because the hell with APIs!', add_help = 'How to use',
+        prog = 'python download.py [-u <user> | -c <csv fife with credentials>] -o <output dir>')
+    parser.add_argument('-u', '--user', required = False,
+        help = 'Garmin username. This will NOT be saved!',
+        default = None)
+    parser.add_argument('-c', '--csv', required = False,
+        help = 'CSV file with username and password in "username,password" format.',
+        default = None)
+    parser.add_argument('-o', '--output', required = False,
+        help = 'Output directory.', default = os.path.join(os.getcwd(), 'Results/'))
+    args = vars(parser.parse_args())
 
-parser = argparse.ArgumentParser(description = 'Garmin Data Scraper',
-    epilog = 'Because the hell with APIs!', add_help = 'How to use',
-    prog = 'python download.py -u <user> -c <csv fife with credentials> -o <output dir>')
-parser.add_argument('-u', '--user', required = False,
-    help = 'Garmin username. This will NOT be saved!')
-parser.add_argument('-c', '--csv', required=False,
-    help = 'CSV file with username and password (comma separated).',
-    default = os.path.join(os.getcwd(), 'credentials.csv'))
-parser.add_argument('-o', '--output', required = False,
-    help = 'Output directory.', default=os.path.join(os.getcwd(), 'Results/'))
-
-args = vars(parser.parse_args())
-# Try to use the user argument from command line
-output = args['output']
-
-if args['user'] is not None:
-    password = getpass('Garmin account password (NOT saved): ')
-    username = args['user']
-    download_files_for_user(username, password, output)
-
-# Try to use csv argument from command line
-
-if args['csv'] is not None:
-    csv_file_path = args['csv']
-    if not os.path.exists(csv_file_path):
-        print("CSV file doesn't exist")
+    # Sanity check, before we do anything:
+    if args['user'] is None and args['csv'] is None:
+        print("Must either specify a username (-u) or a CSV credentials file (-c).")
         sys.exit()
-    else:
-        with open(csv_file_path, 'r') as f:
-            for line in f:
-                try:
-                    if ',' in line:
-                        username, password = (line.strip().split(','))
-                        print('Downloading files for user {}'.format(username))
-                        download_files_for_user(username, password, output)
-                except IndexError:
-                    raise Exception('Wrong line in CSV file. Please check the line {}'.format(line))
 
+    # Try to use the user argument from command line
+    output = args['output']
+
+    if args['user'] is not None:
+        password = getpass('Garmin account password (NOT saved): ')
+        username = args['user']
+    else:
+        csv_file_path = args['csv']
+        if not os.path.exists(csv_file_path):
+            print("Could not find specified credentials file \"{}\"".format(csv_file_path))
+            sys.exit()
+        try:
+            with open(csv_file_path, 'r') as f:
+                contents = f.read()
+        except IOError as e:
+            print(e)
+            sys.exit()
+        try:
+            username, password = contents.strip().split(",")
+        except IndexError:
+            print("CSV file must only have 1 line, in \"username,password\" format.")
+            sys.exit()
+
+    # Perform the download.
+    download_files_for_user(username, password, output)
