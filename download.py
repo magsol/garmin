@@ -30,11 +30,9 @@ SSO = "https://sso.garmin.com/sso"
 CSS = "https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.2-min.css"
 REDIRECT = "https://connect.garmin.com/post-auth/login"
 ACTIVITIES = "http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?start=%s&limit=%s"
-#TCX = "https://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/%s?full=true"
-#GPX = "https://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/%s?full=true"
-TCX = "https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/%s?full=true"
-GPX = "https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/%s?full=true"
-KML = "https://connect.garmin.com/proxy/activity-service-1.0/kml/activity/%s?full=true"
+
+TCX = "https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/%s"
+GPX = "https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/%s"
 
 def login(agent, username, password):
     global BASE_URL, GAUTH, REDIRECT, SSO, CSS
@@ -90,7 +88,7 @@ def login(agent, username, password):
     if res.get_data().find("Invalid") >= 0:
         quit("Login failed! Check your credentials, or submit a bug report.")
     elif res.get_data().find("SUCCESS") >= 0:
-        print 'Login successful! Proceeding...'
+        print('Login successful! Proceeding...')
     else:
         quit('UNKNOWN STATE. This script may need to be updated. Submit a bug report.')
 
@@ -121,7 +119,7 @@ def activities(agent, outdir, increment = 100):
     while True:
         for item in search['results']['activities']:
             # Read this list of activities and save the files.
-            # print '.'
+
             activityId = item['activity']['activityId']
             activityDate = item['activity']['activitySummary']['BeginTimestamp']['value'][:10]
             url = TCX % activityId
@@ -199,7 +197,7 @@ if args['csv'] is not None:
                 try:
                     if ',' in line:
                         username, password = (line.strip().split(','))
-                        print 'Downloading files for user {}'.format(username)
+                        print('Downloading files for user {}'.format(username))
                         download_files_for_user(username, password, output)
                 except IndexError:
                     raise Exception('Wrong line in CSV file. Please check the line {}'.format(line))
