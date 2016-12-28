@@ -17,12 +17,13 @@ to be determined.
 import argparse
 from getpass import getpass
 import json
-import mechanize as me
 import os
 import re
 import shutil
 import sys
 import urllib
+
+import mechanicalsoup as me
 
 BASE_URL = "http://connect.garmin.com/en-US/signin"
 GAUTH = "https://connect.garmin.com/gauth/hostname"
@@ -38,15 +39,12 @@ def login(agent, username, password):
     global BASE_URL, GAUTH, REDIRECT, SSO, CSS
 
     # First establish contact with Garmin and decipher the local host.
-    page = agent.open(BASE_URL)
+    page = agent.get(BASE_URL)
     pattern = "\"\S+sso\.garmin\.com\S+\""
-    script_url = re.search(pattern, page.get_data()).group()[1:-1]
-    agent.set_handle_robots(False)   # no robots
-    agent.set_handle_refresh(False)  # can sometimes hang without this
-    agent.open(script_url)
-    agent.addheaders = [('User-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.2 (KHTML, like Gecko) Chrome/15.0.874.121 Safari/535.2')]
-    hostname_url = agent.open(GAUTH)
-    hostname = json.loads(hostname_url.get_data())['host']
+    script_url = re.search(pattern, page.text).group()[1:-1]
+    agent.get(script_url)
+    hostname_url = agent.get(GAUTH)
+    hostname = json.loads(hostname_url.text)['host']
 
     # Package the full login GET request...
     data = {'service': REDIRECT,
@@ -71,30 +69,25 @@ def login(agent, username, password):
         'generateExtraServiceTicket': 'false'}
 
     # ...and officially say "hello" to Garmin Connect.
-    login_url = 'https://sso.garmin.com/sso/login?%s' % urllib.urlencode(data)
-    agent.open(login_url)
+    login_url = 'https://sso.garmin.com/sso/login?%s' % urllib.parse.urlencode(data)
+    login_page = agent.get(login_url)
 
     # Set up the login form.
-    agent.select_form(predicate = lambda f: 'id' in f.attrs and f.attrs['id'] == 'login-form')
-    agent['username'] = username
-    agent['password'] = password
-    agent.set_handle_robots(False)   # no robots
-    agent.set_handle_refresh(False)  # can sometimes hang without this
-    # Apparently Garmin Connect attempts to filter on these browser headers;
-    # without them, the login will fail.
+    f = login_page.soup.select("#login-form")[0]
+    f.input({"username": username, "password": password})
 
     # Submit the login!
-    res = agent.submit()
-    if res.get_data().find("Invalid") >= 0:
+    submission = agent.submit(f, login_page.url)
+    if submission.text.find("Invalid") >= 0:
         quit("Login failed! Check your credentials, or submit a bug report.")
-    elif res.get_data().find("SUCCESS") >= 0:
+    elif submission.text.find("SUCCESS") >= 0:
         print('Login successful! Proceeding...')
     else:
         quit('UNKNOWN STATE. This script may need to be updated. Submit a bug report.')
 
     # Now we need a very specific URL from the respose.
-    response_url = re.search("response_url\s*=\s*'(.*)';", res.get_data()).groups()[0]
-    agent.open(response_url.replace("\/", "/"))
+    response_url = re.search("response_url\s*=\s*'(.*)';", submission.text).groups()[0]
+    agent.get(response_url.replace("\/", "/"))
 
     # In theory, we're in.
 
@@ -110,11 +103,11 @@ def activities(agent, outdir, increment = 100):
     currentIndex = 0
     initUrl = ACTIVITIES % (currentIndex, increment)  # 100 activities seems a nice round number
     try:
-        response = agent.open(initUrl)
+        response = agent.get(initUrl)
     except:
         print('Wrong credentials for user {}. Skipping.'.format(username))
         return
-    search = json.loads(response.get_data())
+    search = json.loads(response.text)
     totalActivities = int(search['results']['totalFound'])
     while True:
         for item in search['results']['activities']:
@@ -128,7 +121,7 @@ def activities(agent, outdir, increment = 100):
                 print('{} already exists in {}. Skipping.'.format(file_name, output))
                 continue
             print('{} is downloading...'.format(file_name))
-            datafile = agent.open(url).get_data()
+            datafile = agent.get(url).text
             file_path = os.path.join(outdir, file_name)
             f = open(file_path, "w")
             f.write(datafile)
@@ -142,8 +135,8 @@ def activities(agent, outdir, increment = 100):
         # We still have at least 1 activity.
         currentIndex += increment
         url = ACTIVITIES % (currentIndex, increment)
-        response = agent.open(url)
-        search = json.loads(response.get_data())
+        response = agent.get(url)
+        search = json.loads(response.text)
 
 def download_files_for_user(username, password, output):
     # Create the agent and log in.
