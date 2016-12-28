@@ -45,6 +45,6 @@ If any of the following packages require dependencies, they will be listed. To i
 
     pip install package
 
- - **download.py**: A script for downloading all Garmin Connect data as TCX files for offline parsing. *Dependencies: mechanize*
+ - **download.py**: A script for downloading all Garmin Connect data as TCX files for offline parsing. *Dependencies: mechanicalsoup*
 
  - **monthly.py**: A script for updating one's Twitter account with monthly statistics. Currently, the statistics and format are identical to those seen on [DailyMile](http://www.dailymile.com) for their weekly statistics. I just thought it'd be neat to have monthly updates, too. *Dependencies: tweepy, mechanize*
