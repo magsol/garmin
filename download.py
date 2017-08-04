@@ -250,6 +250,12 @@ if __name__ == "__main__":
         start_date = args['startdate']
         end_date = args['enddate']
         display_name = args['displayname']
+        if not end_date:
+            print("Provide an enddate")
+            sys.exit(1)
+        if not display_name:
+            print("Provide a displayname, you can find it in the url of Daily Summary: '.../daily-summary/<displayname>/...'")
+            sys.exit(1)
         download_wellness_for_user(username, password, start_date, end_date, display_name, output)
     else:
         download_files_for_user(username, password, output)
