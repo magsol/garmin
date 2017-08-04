@@ -30,6 +30,7 @@ SSO = "https://sso.garmin.com/sso"
 CSS = "https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.2-min.css"
 REDIRECT = "https://connect.garmin.com/post-auth/login"
 ACTIVITIES = "http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?start=%s&limit=%s"
+WELLNESS = "https://connect.garmin.com/modern/proxy/userstats-service/wellness/daily/%s?fromDate=%s&untilDate=%s"
 
 TCX = "https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/%s"
 GPX = "https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/%s"
@@ -92,8 +93,8 @@ def login(agent, username, password):
     else:
         quit('UNKNOWN STATE. This script may need to be updated. Submit a bug report.')
 
-    # Now we need a very specific URL from the respose.
-    response_url = re.search("response_url\s*=\s*'(.*)';", res.get_data()).groups()[0]
+    # Now we need a very specific URL from the response.
+    response_url = re.search("response_url\s*=\s*\"(.*)\";", res.get_data()).groups()[0]
     agent.open(response_url.replace("\/", "/"))
 
     # In theory, we're in.
@@ -145,6 +146,21 @@ def activities(agent, outdir, increment = 100):
         response = agent.open(url)
         search = json.loads(response.get_data())
 
+def wellness(agent, start_date, end_date, display_name, outdir):
+    url = WELLNESS % (display_name, start_date, end_date)
+    try:
+        response = agent.open(url)
+    except:
+        print('Wrong credentials for user {}. Skipping.'.format(username))
+        return
+    content = json.loads(response.get_data())
+
+    file_name = '{}_{}.json'.format(start_date, end_date)
+    file_path = os.path.join(outdir, file_name)
+    with open(file_path, "w") as f:
+        f.write(json.dumps(content))
+
+
 def download_files_for_user(username, password, output):
     # Create the agent and log in.
     agent = me.Browser()
@@ -161,6 +177,23 @@ def download_files_for_user(username, password, output):
     # Scrape all the activities.
     activities(agent, download_folder)
 
+def download_wellness_for_user(username, password, start_date, end_date, display_name, output):
+    # Create the agent and log in.
+    agent = me.Browser()
+    print("Attempting to login to Garmin Connect...")
+    login(agent, username, password)
+
+    user_output = os.path.join(output, username)
+    download_folder = os.path.join(user_output, 'Wellness')
+
+    # Create output directory (if it does not already exist).
+    if not os.path.exists(download_folder):
+        os.makedirs(download_folder)
+
+    # Scrape all wellness data.
+    wellness(agent, start_date, end_date, display_name, download_folder)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Garmin Data Scraper',
         epilog = 'Because the hell with APIs!', add_help = 'How to use',
@@ -170,6 +203,15 @@ if __name__ == "__main__":
         default = None)
     parser.add_argument('-c', '--csv', required = False,
         help = 'CSV file with username and password in "username,password" format.',
+        default = None)
+    parser.add_argument('-s', '--startdate', required = False,
+        help = 'Start date for wellness data',
+        default = None)
+    parser.add_argument('-e', '--enddate', required = False,
+        help = 'End date for wellness data',
+        default = None)
+    parser.add_argument('-d', '--displayname', required = False,
+        help = 'Displayname (see the url when logged into Garmin Connect)',
         default = None)
     parser.add_argument('-o', '--output', required = False,
         help = 'Output directory.', default = os.path.join(os.getcwd(), 'Results/'))
@@ -204,4 +246,10 @@ if __name__ == "__main__":
             sys.exit()
 
     # Perform the download.
-    download_files_for_user(username, password, output)
+    if args['startdate'] is not None:
+        start_date = args['startdate']
+        end_date = args['enddate']
+        display_name = args['displayname']
+        download_wellness_for_user(username, password, start_date, end_date, display_name, output)
+    else:
+        download_files_for_user(username, password, output)
