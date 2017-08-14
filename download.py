@@ -31,6 +31,8 @@ CSS = "https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.2-
 REDIRECT = "https://connect.garmin.com/post-auth/login"
 ACTIVITIES = "http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?start=%s&limit=%s"
 WELLNESS = "https://connect.garmin.com/modern/proxy/userstats-service/wellness/daily/%s?fromDate=%s&untilDate=%s"
+DAILYSUMMARY = "https://connect.garmin.com/modern/proxy/wellness-service/wellness/dailySummaryChart/%s?date=%s"
+
 
 TCX = "https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/%s"
 GPX = "https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/%s"
@@ -153,20 +155,38 @@ def wellness(agent, start_date, end_date, display_name, outdir):
     except:
         print('Wrong credentials for user {}. Skipping.'.format(username))
         return
-    content = json.loads(response.get_data())
+    content = response.get_data()
 
     file_name = '{}_{}.json'.format(start_date, end_date)
     file_path = os.path.join(outdir, file_name)
     with open(file_path, "w") as f:
-        f.write(json.dumps(content))
+        f.write(content)
 
 
-def download_files_for_user(username, password, output):
+def dailysummary(agent, date, display_name, outdir):
+    url = DAILYSUMMARY % (display_name, date)
+    try:
+        response = agent.open(url)
+    except:
+        print('Wrong credentials for user {}. Skipping.'.format(username))
+        return
+    content = response.get_data()
+
+    file_name = '{}_summary.json'.format(date)
+    file_path = os.path.join(outdir, file_name)
+    with open(file_path, "w") as f:
+        f.write(content)
+
+
+def login_user(username, password):
     # Create the agent and log in.
     agent = me.Browser()
     print("Attempting to login to Garmin Connect...")
     login(agent, username, password)
+    return agent
 
+
+def download_files_for_user(agent, username, output):
     user_output = os.path.join(output, username)
     download_folder = os.path.join(user_output, 'Historical')
 
@@ -177,12 +197,8 @@ def download_files_for_user(username, password, output):
     # Scrape all the activities.
     activities(agent, download_folder)
 
-def download_wellness_for_user(username, password, start_date, end_date, display_name, output):
-    # Create the agent and log in.
-    agent = me.Browser()
-    print("Attempting to login to Garmin Connect...")
-    login(agent, username, password)
 
+def download_wellness_for_user(agent, username, start_date, end_date, display_name, output):
     user_output = os.path.join(output, username)
     download_folder = os.path.join(user_output, 'Wellness')
 
@@ -192,6 +208,8 @@ def download_wellness_for_user(username, password, start_date, end_date, display
 
     # Scrape all wellness data.
     wellness(agent, start_date, end_date, display_name, download_folder)
+    # Daily summary does not do ranges, only fetch for `startdate`
+    dailysummary(agent, start_date, display_name, download_folder)
 
 
 if __name__ == "__main__":
@@ -256,6 +274,8 @@ if __name__ == "__main__":
         if not display_name:
             print("Provide a displayname, you can find it in the url of Daily Summary: '.../daily-summary/<displayname>/...'")
             sys.exit(1)
-        download_wellness_for_user(username, password, start_date, end_date, display_name, output)
+        agent = login_user(username, password)
+        download_wellness_for_user(agent, username, start_date, end_date, display_name, output)
     else:
-        download_files_for_user(username, password, output)
+        agent = login_user(username, password)
+        download_files_for_user(agent, username, output)
