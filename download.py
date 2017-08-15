@@ -215,7 +215,7 @@ def download_wellness_for_user(agent, username, start_date, end_date, display_na
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Garmin Data Scraper',
         epilog = 'Because the hell with APIs!', add_help = 'How to use',
-        prog = 'python download.py [-u <user> | -c <csv fife with credentials>] -o <output dir>')
+        prog = 'python download.py [-u <user> | -c <csv fife with credentials>] [ -s <start_date> -e <end_date> -d <display_name> ] -o <output dir>')
     parser.add_argument('-u', '--user', required = False,
         help = 'Garmin username. This will NOT be saved!',
         default = None)
