@@ -43,8 +43,8 @@ def login(agent, username, password):
     global BASE_URL, GAUTH, REDIRECT, SSO, CSS
 
     # First establish contact with Garmin and decipher the local host.
+    agent.set_handle_robots(False)   # no robots
     page = agent.open(BASE_URL)
-    #pattern = "\"\S+sso\.garmin\.com\S+\""  ##Pattern seems to have reverted back to apostrophe from quotation
     pattern = "\'\S+sso\.garmin\.com\\S+\'"
     script_url = re.search(pattern, page.get_data()).group()[1:-1]
     agent.set_handle_robots(False)   # no robots
@@ -121,20 +121,16 @@ def activities(agent, outdir, increment = 100):
         print('Wrong credentials for user {}. Skipping.'.format(username))
         return
     search = json.loads(response.get_data())
-    #totalActivities = int(search['results']['totalFound']) ##we no longer have a nice little batch summary, just an array of JSON activities
     while True:
         if len(search) == 0:
             # All done!
             print('Download complete')
             break
 
-        #for item in search['results']['activities']:
         for item in search:
             # Read this list of activities and save the files.
 
-            #activityId = item['activity']['activityId']
             activityId = item['activityId']
-            #activityDate = item['activity']['activitySummary']['BeginTimestamp']['value'][:10]
             activityDate = item['startTimeLocal'][:10]
             url = TCX % activityId
             file_name = '{}_{}.txt'.format(activityDate, activityId)
@@ -148,10 +144,6 @@ def activities(agent, outdir, increment = 100):
             f.write(datafile)
             f.close()
             shutil.copy(file_path, os.path.join(os.path.dirname(os.path.dirname(file_path)), file_name))
-
-        #if (currentIndex + increment) > totalActivities:
-        #    # All done!
-        #    break
 
         # We still have at least 1 activity.
         currentIndex += increment
